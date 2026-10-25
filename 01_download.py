@@ -13,9 +13,11 @@ import pandas as pd
 import config as c
 
 API = "https://data.airquality.nsw.gov.au/api/Data"
+CHUNKS = c.RAW / "chunks"
+CHUNKS.mkdir(exist_ok=True)
 
 def get_sites():
-    #download stations
+    """download station list and keep the stations in sydney box"""
     r = requests.get(f"{API}/get_SiteDetails", timeout= 60)
     sites = pd.DataFrame(r.json())
     sydney = sites[
@@ -25,6 +27,70 @@ def get_sites():
     ]
     return sydney
 
+def download(site_ids, start, end):
+    """download hourly pm2.5 for these stations, start included, end not included"""
+    body = {
+        "Parameters": ["PM2.5"],
+        "Sites": site_ids,
+        "StartDate": start,
+        "EndDate": end,
+        "Categories": ["Averages"],
+        "Subcategories": ["Hourly"],
+        "Frequency": ["Hourly average"],
+    }
+    for attempt in range(3):
+        try:
+            r = requests.post(f"{API}/get_Observations", json=body, timeout=120)
+            if r.status_code == 200:
+                return pd.DataFrame(r.json())
+            print("server error", r.status_code, "- retrying")
+        except requests.RequestException as e:
+            print("connection problem:", type(e).__name__, "- retrying")
+        time.sleep(10)
+    raise RuntimeError(f"Gave up on {start} for stations {site_ids}")
+
+def tidy(raw):
+    """keep site_id, a proper hour start timestamp, and the pm2.5 value"""
+    hour_start = raw["Hour"].astype(int) - 1
+    return pd.DataFrame({
+        "site_id": raw["Site_Id"],
+        "time": pd.to_datetime(raw["Date"]) + pd.to_timedelta(hour_start, unit="h"),
+        "pm25": pd.to_numeric(raw["Value"], errors="coerce")
+    })
+
+
+# sydney stations
 sydney = get_sites()
-print(sydney)
-print(len(sydney))
+
+# which stations measure pm2.5
+test = download(sydney["Site_Id"].tolist(), "2024-01-01", "2024-01-02")
+
+# keep them in groups of 5 and save
+pm_ids = sorted(test["Site_Id"].unique().tolist())
+groups = [pm_ids[i:i+5] for i in range(0, len(pm_ids), 5)]
+sydney = sydney[sydney["Site_Id"].isin(pm_ids)]
+sydney.to_csv(c.RAW / "sites.csv", index=False)
+print(len(pm_ids), "stations measure PM2.5")
+print(groups)
+
+# download every month (skips months alr saved)
+months = pd.date_range(c.STUDY_START, c.STUDY_END, freq="MS")
+for m in months:
+    end = m + pd.offsets.MonthBegin(1)
+    start_str = m.strftime("%Y-%m-%d")
+    end_str = end.strftime("%Y-%m-%d")
+    path = CHUNKS / f"pm25_{m:%Y-%m}.csv"
+    if path.exists():
+        continue
+
+    raw = pd.concat([download(g, start_str, end_str) for g in groups], ignore_index=True)
+    month = tidy(raw)
+    month.to_csv(path, index=False)
+    print(f"{m:%Y-%m}: {len(month):,} rows")
+
+# combine every month into one file
+files = sorted(CHUNKS.glob("pm25_*.csv"))
+pm = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
+pm.to_csv(c.RAW / "pm25_hourly.csv", index=False)
+print(f"pm25_hourly.csv: {len(pm):,} rows, {pm['site_id'].nunique()} stations, "
+      f"{pm['pm25'].notna().sum():,} with a value")
