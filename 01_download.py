@@ -13,6 +13,7 @@ import pandas as pd
 import config as c
 
 API = "https://data.airquality.nsw.gov.au/api/Data"
+WEATHER_API = "https://archive-api.open-meteo.com/v1/archive"
 CHUNKS = c.RAW / "chunks"
 CHUNKS.mkdir(exist_ok=True)
 
@@ -58,6 +59,28 @@ def tidy(raw):
         "pm25": pd.to_numeric(raw["Value"], errors="coerce")
     })
 
+def get_weather(lat, lon):
+    """Hourly weather at one location for the whole study period (ERA5 via Open-Meteo)."""
+    p = {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": c.STUDY_START,
+        "end_date": c.STUDY_END,
+        "hourly": "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation,boundary_layer_height",
+        "timezone": "Australia/Brisbane",
+
+    }
+    for attempt in range(6):
+        try:
+            r = requests.get(WEATHER_API, params=p, timeout=300)
+            if r.status_code == 200:
+                return pd.DataFrame(r.json()["hourly"])
+            print("weather error", r.status_code, "- retrying")
+        except requests.RequestException as e:
+            print("connection problem:", type(e).__name__, "- retrying")
+        time.sleep(60 * (attempt + 1))
+    raise RuntimeError(f"gave up on weather at {lat}, {lon}")
+
 
 # sydney stations
 sydney = get_sites()
@@ -94,3 +117,21 @@ pm = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 pm.to_csv(c.RAW / "pm25_hourly.csv", index=False)
 print(f"pm25_hourly.csv: {len(pm):,} rows, {pm['site_id'].nunique()} stations, "
       f"{pm['pm25'].notna().sum():,} with a value")
+
+# weather for each station
+for _, s in sydney.iterrows():
+    path = CHUNKS / f"weather_{s['Site_Id']}.csv"
+    if path.exists():
+        continue
+
+    w = get_weather(s["Latitude"], s["Longitude"])
+    w["site_id"] = s["Site_Id"]
+    w.to_csv(path, index=False)
+    print(f"{s['SiteName']}: {len(w):,} hours")
+    time.sleep(2)
+
+# combine every station into one file
+files = sorted(CHUNKS.glob("weather_*.csv"))
+wx = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
+wx.to_csv(c.RAW / "weather_hourly.csv", index=False)
+print(f"weather_hourly.csv: {len(wx):,} rows, {wx['site_id'].nunique()} stations")
