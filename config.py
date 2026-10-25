@@ -16,3 +16,4 @@ TRAIN_END = "2022-12-31"           # train: 2016-2022
 VAL_YEAR = "2023"                  # tuning / threshold choice only
 TEST_YEAR = "2024"
 
+MAX_PLAUSIBLE_HOURLY = 1500   # ug/m3; bushfire smoke can exceed 1000 for an hour, instruments rarely read beyond this
