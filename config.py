@@ -1,5 +1,10 @@
+"""
+project settings
+"""
+
 from pathlib import Path
 
+# folders and paths
 DATA = Path(__file__).parent / "data"
 RAW = DATA / "raw"
 PROCESSED = DATA / "processed"
@@ -16,4 +21,21 @@ TRAIN_END = "2022-12-31"           # train: 2016-2022
 VAL_YEAR = "2023"                  # tuning / threshold choice only
 TEST_YEAR = "2024"
 
-MAX_PLAUSIBLE_HOURLY = 1500   # ug/m3; bushfire smoke can exceed 1000 for an hour, instruments rarely read beyond this
+# hourly data cleaning 
+MAX_PLAUSIBLE_HOURLY = 1500   # ug/m3; above = instrument fault (highest real reading is 1085)
+STUCK_HOURS = 6 # same value 6+ hours in a row = stuck sensor
+# isolated local spikes
+SPIKE_MIN = 100              # rule 1: the reading must be above 100 ug/m3
+SPIKE_RATIO = 10             # rule 2: and more than 10x the Sydney median that hour
+SPIKE_NEIGHBOUR_FRAC = 0.5   # rule 3: and no other station above half its value (else it's a regional plume)
+
+# daily table
+MIN_HOURS_PER_DAY = 18     # a daily mean needs at least 18 of 24 hours (75% completeness rule)
+MIN_VALID_DAYS = 365       # drop stations with less than a year of valid days in total
+
+# targets
+WHO_24H = 15.0             # WHO 2021 24-hour PM2.5 guideline (ug/m3) - the main threshold
+NEPM_24H = 25.0            # Australian national standard - reported as a secondary threshold
+
+# black summer bush fire smoke period
+FIRE_START, FIRE_END = "2019-10-01", "2020-02-29"
