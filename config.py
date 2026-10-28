@@ -55,3 +55,8 @@ FEATURES = OWN + NETWORK + WEATHER + CALENDAR
 SEED = 42                # fixes all randomness, so results are identical every run
 N_BOOT = 1000            # resamples for 95% confidence intervals
 MIN_PRAUC_GAIN = 0.05    # pre-registered success: GBM beats the best baseline's PR-AUC by >= 0.05, CI above 0
+
+# spatial model
+N_SPATIAL_CLUSTERS = 5      # leave-cluster-out: hide a whole group of nearby stations at once
+GRID_KM = 1.0               # prediction surface: 1 km grid cells
+MIN_RMSE_REDUCTION = 0.10   # pre-registered success: >= 10% lower RMSE than the best baseline, CI above 0
