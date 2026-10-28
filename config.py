@@ -39,3 +39,19 @@ NEPM_24H = 25.0            # Australian national standard - reported as a second
 
 # black summer bush fire smoke period
 FIRE_START, FIRE_END = "2019-10-01", "2020-02-29"
+
+# forecasting
+# forecast issued at 16:00 on day D using only data before then; target = day D+1.
+FORECAST_CUTOFF_HOUR = 16
+
+# feature groups
+OWN = ["pm_today", "pm_today_max", "pm_last3h", "pm_yesterday", "pm_3day", "pm_7day"]
+NETWORK = ["net_today", "net_yesterday"]
+WEATHER = ["wx_temp", "wx_rh", "wx_wind", "wx_wind_u", "wx_wind_v", "wx_blh", "wx_rain"]
+CALENDAR = ["doy_sin", "doy_cos", "weekend_tomorrow"]
+FEATURES = OWN + NETWORK + WEATHER + CALENDAR
+
+# evaluation
+SEED = 42                # fixes all randomness, so results are identical every run
+N_BOOT = 1000            # resamples for 95% confidence intervals
+MIN_PRAUC_GAIN = 0.05    # pre-registered success: GBM beats the best baseline's PR-AUC by >= 0.05, CI above 0
