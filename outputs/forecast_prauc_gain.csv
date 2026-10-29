@@ -1,0 +1,2 @@
+comparison,PR_AUC_gain,CI_low,CI_high,meets_criterion
+gbm vs persistence,0.0862134480745789,0.015045385983934527,0.14803291483178221,True
